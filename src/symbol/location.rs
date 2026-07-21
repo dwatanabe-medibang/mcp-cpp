@@ -219,13 +219,11 @@ impl FileLocation {
 
     /// Get the LSP URI for this file location
     pub fn get_uri(&self) -> lsp_types::Uri {
-        let path_str = self.file_path.to_string_lossy();
-        let uri_str = if path_str.starts_with('/') {
-            format!("file://{}", path_str)
-        } else {
-            format!("file:///{}", path_str)
-        };
-        uri_str.parse().expect("Failed to parse URI from file path")
+        url::Url::from_file_path(&self.file_path)
+            .expect("Failed to build file URL from path")
+            .as_str()
+            .parse()
+            .expect("Failed to parse URI from file path")
     }
 
     /// Convert FileLocation to compact LSP-style range format
@@ -311,19 +309,24 @@ impl From<LspLocation> for FilePosition {
     fn from(location: LspLocation) -> Self {
         FilePosition {
             position: location.range.start.into(),
-            file_path: location.uri.path().to_string().into(),
+            file_path: pathbuf_from_uri(&location.uri),
         }
     }
 }
 
 pub fn uri_from_pathbuf(path: &Path) -> lsp_types::Uri {
     use std::str::FromStr;
-    let uri_string = format!("file://{}", path.to_string_lossy());
+    let uri_string = url::Url::from_file_path(path)
+        .expect("Failed to build file URL from path")
+        .to_string();
     lsp_types::Uri::from_str(&uri_string).expect("Failed to convert PathBuf to Uri")
 }
 
 pub fn pathbuf_from_uri(uri: &lsp_types::Uri) -> PathBuf {
-    uri.path().to_string().into()
+    url::Url::parse(&uri.to_string())
+        .ok()
+        .and_then(|url| url.to_file_path().ok())
+        .unwrap_or_else(|| uri.path().to_string().into())
 }
 
 impl From<FilePosition> for LspLocation {

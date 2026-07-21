@@ -77,9 +77,7 @@ impl ProjectBoundaryFilter {
     }
 
     /// Check if a file path belongs to the project
-    fn is_project_file(&self, path: &str) -> bool {
-        let file_path = std::path::PathBuf::from(path);
-
+    fn is_project_file(&self, file_path: &std::path::Path) -> bool {
         if let Ok(canonical_file) = file_path.canonicalize() {
             canonical_file.starts_with(&self.canonical_source_root)
         } else {
@@ -99,10 +97,9 @@ impl WorkspaceSymbolFilter for ProjectBoundaryFilter {
             lsp_types::OneOf::Right(workspace_location) => workspace_location.uri.as_str(),
         };
 
-        if let Some(path) = uri_str.strip_prefix("file://") {
-            self.is_project_file(path)
-        } else {
-            true // Default to inclusion when URI parsing fails
+        match url::Url::parse(uri_str).ok().and_then(|url| url.to_file_path().ok()) {
+            Some(path) => self.is_project_file(&path),
+            None => true, // Default to inclusion when URI parsing fails
         }
     }
 }

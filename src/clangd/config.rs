@@ -585,10 +585,9 @@ impl ClangdConfig {
     pub fn get_root_uri(&self) -> Option<String> {
         self.lsp_config.root_uri.clone().or_else(|| {
             // Auto-generate from working directory if not specified
-            Some(format!(
-                "file://{}",
-                self.working_directory.to_string_lossy()
-            ))
+            url::Url::from_directory_path(&self.working_directory)
+                .ok()
+                .map(|url| url.to_string())
         })
     }
 
@@ -714,6 +713,11 @@ mod tests {
 
         let root_uri = config.get_root_uri().unwrap();
         assert!(root_uri.starts_with("file://"));
-        assert!(root_uri.contains(&temp_dir.path().to_string_lossy().to_string()));
+
+        // Round-trip through url::Url rather than asserting raw string containment,
+        // since a well-formed file URI uses forward slashes and percent-encoding
+        // and won't contain the platform path as a literal substring on Windows.
+        let parsed_path = url::Url::parse(&root_uri).unwrap().to_file_path().unwrap();
+        assert_eq!(parsed_path, temp_dir.path());
     }
 }

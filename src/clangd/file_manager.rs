@@ -93,7 +93,11 @@ impl ClangdFileManager {
         let content_hash = Self::compute_hash(&content);
 
         // Generate file URI
-        let uri_string = format!("file://{}", abs_path.display());
+        let uri_string = url::Url::from_file_path(&abs_path)
+            .map_err(|_| {
+                FileManagerError::InvalidPath(format!("Cannot build file URL: {}", abs_path.display()))
+            })?
+            .to_string();
         let uri: lsp_types::Uri = uri_string
             .parse()
             .map_err(|e| FileManagerError::InvalidPath(format!("Invalid URI: {}", e)))?;
